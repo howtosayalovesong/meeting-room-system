@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会议室预定系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e40af',
+                        secondary: '#3b82f6',
+                        accent: '#60a5fa',
+                        light: '#f3f4f6',
+                        dark: '#1f2937'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .glass-effect {
+                background: rgba(255, 255, 255, 0.8);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+            }
+            .time-slot {
+                transition: all 0.2s ease;
+            }
+            .time-slot:hover:not(.booked) {
+                background-color: rgba(96, 165, 250, 0.2);
+                transform: translateY(-1px);
+            }
+            .time-slot.booked {
+                cursor: not-allowed;
+                position: relative;
+            }
+            .time-slot.booked::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-image: repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 5px,
+                    rgba(0, 0, 0, 0.05) 5px,
+                    rgba(0, 0, 0, 0.05) 10px
+                );
+            }
+            .pulse-animation {
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0% {
+                    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+                }
+                70% {
+                    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+                }
+                100% {
+                    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+                }
+            }
+            .slide-in {
+                animation: slideIn 0.3s ease-out forwards;
+            }
+            @keyframes slideIn {
+                from {
+                    transform: translateY(-20px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+            .fade-in {
+                animation: fadeIn 0.5s ease-out forwards;
+            }
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                }
+                to {
+                    opacity: 1;
+                }
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 标题区域 -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-primary mb-2">会议室预定系统</h1>
+            <p class="text-gray-600">高效管理会议室资源，避免使用冲突</p>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- 左侧会议室列表 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-md p-4 sticky top-4">
+                    <h2 class="text-xl font-semibold text-primary mb-4 flex items-center">
+                        <i class="fa fa-building-o mr-2"></i>会议室列表
+                    </h2>
+                    <ul class="space-y-2" id="roomList">
+                        <li class="room-item p-3 rounded-md cursor-pointer bg-blue-50 border-l-4 border-primary" data-room="大会议室">
+                            <div class="font-medium">大会议室</div>
+                        </li>
+                        <li class="room-item p-3 rounded-md cursor-pointer hover:bg-blue-50 transition-colors" data-room="小会议室">
+                            <div class="font-medium">小会议室</div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 右侧主要内容区域 -->
+            <div class="lg:col-span-3 space-y-6">
+                <!-- 预定表单区域 -->
+                <div class="bg-white rounded-lg shadow-md p-6 glass-effect">
+                    <h2 class="text-xl font-semibold text-primary mb-4 flex items-center">
+                        <i class="fa fa-calendar-plus-o mr-2"></i>预定会议室
+                    </h2>
+                    <form id="bookingForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="department" class="block text-sm font-medium text-gray-700 mb-1">部门</label>
+                            <input type="text" id="department" name="department" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div>
+                            <label for="booker" class="block text-sm font-medium text-gray-700 mb-1">预定人</label>
+                            <input type="text" id="booker" name="booker" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div>
+                            <label for="date" class="block text-sm font-medium text-gray-700 mb-1">日期</label>
+                            <input type="date" id="date" name="date" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+
+                        <div>
+                            <label for="startTime" class="block text-sm font-medium text-gray-700 mb-1">开始时间</label>
+                            <input type="time" id="startTime" name="startTime" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div>
+                            <label for="endTime" class="block text-sm font-medium text-gray-700 mb-1">结束时间</label>
+                            <input type="time" id="endTime" name="endTime" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div class="md:col-span-2">
+                            <button type="submit" id="submitBtn" 
+                                class="w-full bg-primary hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300 flex items-center justify-center">
+                                <i class="fa fa-check-circle mr-2"></i><span id="submitBtnText">提交预定</span>
+                            </button>
+                            <input type="hidden" id="editingBookingId" value="">
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 日历视图区域 -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-primary flex items-center">
+                            <i class="fa fa-calendar mr-2"></i><span id="currentRoomDisplay">会议室A</span> - <span id="currentDateDisplay"></span>
+                        </h2>
+                        <div class="flex space-x-2">
+                            <button id="prevDay" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors">
+                                <i class="fa fa-chevron-left"></i>
+                            </button>
+                            <button id="todayBtn" class="px-3 py-1 bg-primary text-white hover:bg-blue-700 rounded-md transition-colors">
+                                今天
+                            </button>
+                            <button id="nextDay" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors">
+                                <i class="fa fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <div class="min-w-[600px]">
+                            <div id="calendarGrid" class="grid grid-cols-13 gap-1">
+                                <!-- 时间标签 -->
+                                <div class="col-span-1 h-12 flex items-center justify-center font-medium text-gray-700 border-b border-gray-200">时间</div>
+                                <!-- 时间段 -->
+                                <div class="col-span-12 grid grid-cols-12 gap-1">
+                                    <div class="col-span-12 h-12 flex items-center justify-center font-medium text-gray-700 border-b border-gray-200">时间段</div>
+                                </div>
+                                <!-- 日历内容将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 今日预定列表 -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-primary mb-4 flex items-center">
+                        <i class="fa fa-list-alt mr-2"></i>今日预定列表
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">会议室</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">部门</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">预定人</th>
+
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间段</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bookingList" class="bg-white divide-y divide-gray-200">
+                                <!-- 预定列表将通过JavaScript动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知提示 -->
+    <div id="notification" class="fixed bottom-4 right-4 px-6 py-3 rounded-md shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center">
+        <i id="notificationIcon" class="mr-2"></i>
+        <span id="notificationMessage"></span>
+    </div>
+
+    <!-- 确认删除模态框 -->
+    <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 slide-in">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">确认删除</h3>
+            <p class="text-gray-600 mb-6">您确定要删除这个预定吗？此操作无法撤销。</p>
+            <div class="flex justify-end space-x-3">
+                <button id="cancelDelete" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition-colors">
+                    取消
+                </button>
+                <button id="confirmDelete" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+                    确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let bookings = JSON.parse(localStorage.getItem('meetingRoomBookings')) || [];
+        let currentRoom = '大会议室';
+        let currentDate = new Date();
+        let selectedBookingId = null;
+        let editingBookingId = null;
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', function() {
+            // 设置默认日期为今天
+            const today = new Date();
+            const dateInput = document.getElementById('date');
+            const dateString = today.toISOString().split('T')[0];
+            dateInput.value = dateString;
+
+            // 初始化日历
+            updateCalendar();
+            updateBookingList();
+            updateCurrentDateDisplay();
+
+            // 事件监听
+            document.getElementById('bookingForm').addEventListener('submit', handleBookingSubmit);
+            document.getElementById('roomList').addEventListener('click', handleRoomSelect);
+            document.getElementById('prevDay').addEventListener('click', () => navigateDay(-1));
+            document.getElementById('nextDay').addEventListener('click', () => navigateDay(1));
+            document.getElementById('todayBtn').addEventListener('click', goToToday);
+            document.getElementById('cancelDelete').addEventListener('click', () => toggleDeleteModal(false));
+            document.getElementById('confirmDelete').addEventListener('click', confirmDeleteBooking);
+            
+            // 监听日期变化
+            document.getElementById('date').addEventListener('change', function() {
+                const selectedDate = new Date(this.value);
+                currentDate = selectedDate;
+                updateCalendar();
+                updateCurrentDateDisplay();
+            });
+
+            // 实时更新检查（模拟实时更新）
+            setInterval(checkForUpdates, 30000); // 每30秒检查一次更新
+        });
+
+        // 处理预定表单提交
+        function handleBookingSubmit(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const department = formData.get('department');
+            const booker = formData.get('booker');
+            const date = formData.get('date');
+            const startTime = formData.get('startTime');
+            const endTime = formData.get('endTime');
+            const editingId = document.getElementById('editingBookingId').value;
+            
+            // 验证时间
+            if (new Date(`2000-01-01T${startTime}`) >= new Date(`2000-01-01T${endTime}`)) {
+                showNotification('结束时间必须晚于开始时间', 'error');
+                return;
+            }
+            
+            // 检查时间冲突
+            if (hasTimeConflict(currentRoom, date, startTime, endTime, editingId)) {
+                showNotification('该时间段已被预定，请选择其他时间', 'error');
+                return;
+            }
+            
+            if (editingId) {
+                // 更新现有预定
+                const bookingIndex = bookings.findIndex(b => b.id === editingId);
+                if (bookingIndex !== -1) {
+                    bookings[bookingIndex] = {
+                        ...bookings[bookingIndex],
+                        department,
+                        booker,
+                        date,
+                        startTime,
+                        endTime,
+                        updatedAt: new Date().toISOString()
+                    };
+                    
+                    showNotification('预定更新成功！', 'success');
+                }
+            } else {
+                // 创建新预定
+                const newBooking = {
+                    id: Date.now().toString(),
+                    room: currentRoom,
+                    department,
+                    booker,
+                    date,
+                    startTime,
+                    endTime,
+                    createdAt: new Date().toISOString()
+                };
+                
+                // 添加到预定列表
+                bookings.push(newBooking);
+                showNotification('会议室预定成功！', 'success');
+            }
+            
+            saveBookings();
+            
+            // 更新UI
+            updateCalendar();
+            updateBookingList();
+            
+            // 重置表单
+            resetForm();
+            
+            // 模拟通知其他用户（在实际应用中，这里会有服务器推送）
+            simulateUpdateNotification();
+        }
+        
+        // 重置表单
+        function resetForm() {
+            const form = document.getElementById('bookingForm');
+            form.reset();
+            
+            // 设置当前日期
+            const today = new Date();
+            const dateString = today.toISOString().split('T')[0];
+            document.getElementById('date').value = dateString;
+            
+            // 重置编辑状态
+            document.getElementById('editingBookingId').value = '';
+            document.getElementById('submitBtnText').textContent = '提交预定';
+            document.getElementById('submitBtn').classList.remove('bg-green-600', 'hover:bg-green-700');
+            document.getElementById('submitBtn').classList.add('bg-primary', 'hover:bg-blue-700');
+            
+            // 隐藏取消编辑按钮
+            const cancelBtn = document.getElementById('cancelEditBtn');
+            if (cancelBtn) {
+                cancelBtn.remove();
+            }
+        }
+        
+        // 编辑预定
+        function editBooking(bookingId) {
+            const booking = bookings.find(b => b.id === bookingId);
+            if (!booking) return;
+            
+            // 填充表单
+            document.getElementById('department').value = booking.department;
+            document.getElementById('booker').value = booking.booker;
+            document.getElementById('date').value = booking.date;
+            document.getElementById('startTime').value = booking.startTime;
+            document.getElementById('endTime').value = booking.startTime;
+            document.getElementById('editingBookingId').value = booking.id;
+            
+            // 更新按钮文本和样式
+            document.getElementById('submitBtnText').textContent = '更新预定';
+            document.getElementById('submitBtn').classList.remove('bg-primary', 'hover:bg-blue-700');
+            document.getElementById('submitBtn').classList.add('bg-green-600', 'hover:bg-green-700');
+            
+            // 添加取消编辑按钮（如果不存在）
+            if (!document.getElementById('cancelEditBtn')) {
+                const submitBtnContainer = document.querySelector('#bookingForm .md\\:col-span-2');
+                const cancelBtn = document.createElement('button');
+                cancelBtn.type = 'button';
+                cancelBtn.id = 'cancelEditBtn';
+                cancelBtn.className = 'w-full mt-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors duration-300 flex items-center justify-center';
+                cancelBtn.innerHTML = '<i class="fa fa-times-circle mr-2"></i>取消编辑';
+                cancelBtn.addEventListener('click', resetForm);
+                submitBtnContainer.appendChild(cancelBtn);
+            }
+            
+            // 滚动到表单
+            document.getElementById('bookingForm').scrollIntoView({ behavior: 'smooth' });
+            
+            // 高亮表单
+            document.getElementById('bookingForm').classList.add('pulse-animation');
+            setTimeout(() => {
+                document.getElementById('bookingForm').classList.remove('pulse-animation');
+            }, 2000);
+        }
+
+        // 检查时间冲突
+        function hasTimeConflict(room, date, startTime, endTime, excludeId = null) {
+            return bookings.some(booking => {
+                // 排除当前正在编辑的预定
+                if (excludeId && booking.id === excludeId) return false;
+                
+                // 检查是否是同一房间和日期
+                if (booking.room !== room || booking.date !== date) return false;
+                
+                // 检查时间重叠
+                const bookingStart = new Date(`2000-01-01T${booking.startTime}`);
+                const bookingEnd = new Date(`2000-01-01T${booking.endTime}`);
+                const newStart = new Date(`2000-01-01T${startTime}`);
+                const newEnd = new Date(`2000-01-01T${endTime}`);
+                
+                // 时间重叠条件：新预定的开始时间小于现有预定的结束时间，且新预定的结束时间大于现有预定的开始时间
+                return (newStart < bookingEnd) && (newEnd > bookingStart);
+            });
+        }
+
+        // 更新日历视图
+        function updateCalendar() {
+            const calendarGrid = document.getElementById('calendarGrid');
+            
+            // 保留表头，清除其他内容
+            while (calendarGrid.children.length > 2) {
+                calendarGrid.removeChild(calendarGrid.lastChild);
+            }
+            
+            const dateStr = currentDate.toISOString().split('T')[0];
+            const roomBookings = bookings.filter(booking => 
+                booking.room === currentRoom && booking.date === dateStr
+            );
+            
+            // 生成时间格子（9:00 - 18:00，每小时一个格子）
+            for (let hour = 9; hour <= 18; hour++) {
+                // 时间标签
+                const timeLabel = document.createElement('div');
+                timeLabel.className = 'col-span-1 h-16 flex items-center justify-center text-sm text-gray-600 border-b border-gray-200';
+                timeLabel.textContent = `${hour}:00`;
+                calendarGrid.appendChild(timeLabel);
+                
+                // 时间段格子
+                const timeSlot = document.createElement('div');
+                timeSlot.className = 'col-span-12 h-16 border-b border-gray-200 relative';
+                timeSlot.dataset.time = `${hour}:00`;
+                
+                // 检查是否有预定
+                const booking = roomBookings.find(b => {
+                    const startHour = parseInt(b.startTime.split(':')[0]);
+                    const endHour = parseInt(b.endTime.split(':')[0]);
+                    return hour >= startHour && hour < endHour;
+                });
+                
+                if (booking) {
+                    // 计算预定在当前小时格子中的位置和高度
+                    const startMinutes = parseInt(booking.startTime.split(':')[1]);
+                    const endMinutes = parseInt(booking.endTime.split(':')[1]);
+                    const startHour = parseInt(booking.startTime.split(':')[0]);
+                    const endHour = parseInt(booking.endTime.split(':')[0]);
+                    
+                    // 创建预定块
+                    const bookingBlock = document.createElement('div');
+                    bookingBlock.className = 'absolute left-0 right-0 bg-blue-100 border-l-4 border-primary p-2 text-xs rounded shadow-sm overflow-hidden';
+                    
+                    // 设置位置和高度
+                    if (hour === startHour) {
+                        // 开始小时
+                        const top = (startMinutes / 60) * 100;
+                        const height = hour === endHour 
+                            ? ((endMinutes - startMinutes) / 60) * 100 
+                            : 100 - top;
+                        
+                        bookingBlock.style.top = `${top}%`;
+                        bookingBlock.style.height = `${height}%`;
+                    } else if (hour === endHour) {
+                        // 结束小时
+                        bookingBlock.style.top = '0%';
+                        bookingBlock.style.height = `${(endMinutes / 60) * 100}%`;
+                    } else {
+                        // 中间小时
+                        bookingBlock.style.top = '0%';
+                        bookingBlock.style.height = '100%';
+                    }
+                    
+                    // 添加预定信息
+                    bookingBlock.innerHTML = `
+                        <div class="font-medium text-primary">${booking.department}</div>
+                        <div class="text-gray-600">${booking.booker}</div>
+                        <div class="text-gray-500">${booking.startTime} - ${booking.endTime}</div>
+                    `;
+                    
+                    timeSlot.appendChild(bookingBlock);
+                    timeSlot.classList.add('booked');
+                } else {
+                    // 添加点击事件以快速预定
+                    timeSlot.addEventListener('click', () => {
+                        document.getElementById('startTime').value = `${hour}:00`;
+                        document.getElementById('endTime').value = `${hour + 1}:00`;
+                        document.getElementById('date').value = dateStr;
+                        
+                        // 滚动到表单
+                        document.getElementById('bookingForm').scrollIntoView({ behavior: 'smooth' });
+                        
+                        // 高亮表单
+                        document.getElementById('bookingForm').classList.add('pulse-animation');
+                        setTimeout(() => {
+                            document.getElementById('bookingForm').classList.remove('pulse-animation');
+                        }, 2000);
+                    });
+                }
+                
+                calendarGrid.appendChild(timeSlot);
+            }
+        }
+
+        // 更新预定列表
+        function updateBookingList() {
+            const bookingList = document.getElementById('bookingList');
+            bookingList.innerHTML = '';
+            
+            // 获取今天的日期字符串
+            const today = new Date().toISOString().split('T')[0];
+            
+            // 过滤今天的预定并按时间排序
+            const todayBookings = bookings
+                .filter(booking => booking.date === today)
+                .sort((a, b) => {
+                    // 先按会议室排序
+                    if (a.room !== b.room) return a.room.localeCompare(b.room);
+                    // 再按开始时间排序
+                    return a.startTime.localeCompare(b.startTime);
+                });
+            
+            if (todayBookings.length === 0) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">今日暂无预定</td>
+                `;
+                bookingList.appendChild(emptyRow);
+                return;
+            }
+            
+            // 添加每个预定到列表
+            todayBookings.forEach(booking => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition-colors fade-in';
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="font-medium text-gray-900">${booking.room}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-gray-900">${booking.department}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-gray-900">${booking.booker}</div>
+                    </td>
+
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-gray-900">${booking.startTime} - ${booking.endTime}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button class="text-blue-600 hover:text-blue-900 edit-btn mr-3" data-id="${booking.id}">
+                            <i class="fa fa-pencil"></i> 编辑
+                        </button>
+                        <button class="text-red-600 hover:text-red-900 delete-btn" data-id="${booking.id}">
+                            <i class="fa fa-trash"></i> 删除
+                        </button>
+                    </td>
+                `;
+                
+                bookingList.appendChild(row);
+            });
+            
+            // 添加编辑和删除按钮事件监听
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    editBooking(this.dataset.id);
+                });
+            });
+            
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    selectedBookingId = this.dataset.id;
+                    toggleDeleteModal(true);
+                });
+            });
+        }
+
+        // 处理会议室选择
+        function handleRoomSelect(e) {
+            const roomItem = e.target.closest('.room-item');
+            if (!roomItem) return;
+            
+            // 更新选中状态
+            document.querySelectorAll('.room-item').forEach(item => {
+                item.classList.remove('bg-blue-50', 'border-l-4', 'border-primary');
+            });
+            roomItem.classList.add('bg-blue-50', 'border-l-4', 'border-primary');
+            
+            // 更新当前会议室
+            currentRoom = roomItem.dataset.room;
+            document.getElementById('currentRoomDisplay').textContent = currentRoom;
+            
+            // 更新日历
+            updateCalendar();
+        }
+
+        // 导航到前一天或后一天
+        function navigateDay(direction) {
+            currentDate.setDate(currentDate.getDate() + direction);
+            updateCalendar();
+            updateCurrentDateDisplay();
+            
+            // 更新日期输入框
+            const dateStr = currentDate.toISOString().split('T')[0];
+            document.getElementById('date').value = dateStr;
+        }
+
+        // 回到今天
+        function goToToday() {
+            currentDate = new Date();
+            updateCalendar();
+            updateCurrentDateDisplay();
+            
+            // 更新日期输入框
+            const dateStr = currentDate.toISOString().split('T')[0];
+            document.getElementById('date').value = dateStr;
+        }
+
+        // 更新当前日期显示
+        function updateCurrentDateDisplay() {
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('currentDateDisplay').textContent = currentDate.toLocaleDateString('zh-CN', options);
+        }
+
+        // 显示通知
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            const icon = document.getElementById('notificationIcon');
+            const messageEl = document.getElementById('notificationMessage');
+            
+            // 设置消息内容
+            messageEl.textContent = message;
+            
+            // 设置图标和样式
+            if (type === 'success') {
+                notification.className = 'fixed bottom-4 right-4 px-6 py-3 bg-green-500 text-white rounded-md shadow-lg transform translate-y-0 opacity-100 transition-all duration-300 z-50 flex items-center';
+                icon.className = 'fa fa-check-circle mr-2';
+            } else if (type === 'error') {
+                notification.className = 'fixed bottom-4 right-4 px-6 py-3 bg-red-500 text-white rounded-md shadow-lg transform translate-y-0 opacity-100 transition-all duration-300 z-50 flex items-center';
+                icon.className = 'fa fa-exclamation-circle mr-2';
+            } else {
+                notification.className = 'fixed bottom-4 right-4 px-6 py-3 bg-blue-500 text-white rounded-md shadow-lg transform translate-y-0 opacity-100 transition-all duration-300 z-50 flex items-center';
+                icon.className = 'fa fa-info-circle mr-2';
+            }
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                notification.className = 'fixed bottom-4 right-4 px-6 py-3 rounded-md shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center';
+            }, 3000);
+        }
+
+        // 切换删除模态框
+        function toggleDeleteModal(show) {
+            const modal = document.getElementById('deleteModal');
+            if (show) {
+                modal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden'; // 防止背景滚动
+            } else {
+                modal.classList.add('hidden');
+                document.body.style.overflow = ''; // 恢复背景滚动
+                selectedBookingId = null;
+            }
+        }
+
+        // 确认删除预定
+        function confirmDeleteBooking() {
+            if (!selectedBookingId) return;
+            
+            console.log('删除前的预定列表:', bookings);
+            console.log('要删除的ID:', selectedBookingId);
+            
+            // 从列表中删除（确保类型匹配）
+            const initialLength = bookings.length;
+            bookings = bookings.filter(booking => String(booking.id) !== String(selectedBookingId));
+            const newLength = bookings.length;
+            
+            console.log(`删除前长度: ${initialLength}, 删除后长度: ${newLength}`);
+            
+            // 保存到本地存储
+            localStorage.setItem('meetingRoomBookings', JSON.stringify(bookings));
+            console.log('已保存到本地存储');
+            
+            // 直接从本地存储重新加载数据
+            const storedData = localStorage.getItem('meetingRoomBookings');
+            console.log('从本地存储读取的数据:', storedData);
+            bookings = JSON.parse(storedData) || [];
+            console.log('重新加载后的预定列表:', bookings);
+            
+            // 更新UI
+            updateCalendar();
+            updateBookingList();
+            
+            // 关闭模态框
+            toggleDeleteModal(false);
+            
+            // 显示成功通知
+            showNotification('预定已删除', 'success');
+            
+            // 模拟通知其他用户
+            simulateUpdateNotification();
+        }
+
+        // 保存预定到本地存储
+        function saveBookings() {
+            localStorage.setItem('meetingRoomBookings', JSON.stringify(bookings));
+        }
+
+        // 检查更新（模拟实时更新）
+        function checkForUpdates() {
+            // 在实际应用中，这里会从服务器获取最新数据
+            // 这里仅模拟从本地存储重新加载数据
+            const storedBookings = JSON.parse(localStorage.getItem('meetingRoomBookings')) || [];
+            
+            // 检查是否有变化
+            if (JSON.stringify(storedBookings) !== JSON.stringify(bookings)) {
+                bookings = storedBookings;
+                updateCalendar();
+                updateBookingList();
+                showNotification('有新的预定更新', 'info');
+            }
+        }
+
+        // 模拟更新通知
+        function simulateUpdateNotification() {
+            // 在实际应用中，这里会通过WebSocket或其他方式通知其他用户
+            console.log('通知其他用户有新的预定更新');
+        }
+
+        // 添加一些示例数据（仅在首次加载且没有数据时）
+        if (bookings.length === 0) {
+            const today = new Date().toISOString().split('T')[0];
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+            
+            const sampleBookings = [
+                {
+                    id: Date.now().toString() + '1',
+                    room: '大会议室',
+                    department: '技术部',
+                    booker: '张三',
+                    date: today,
+                    startTime: '10:00',
+                    endTime: '11:30',
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    id: Date.now().toString() + '2',
+                    room: '小会议室',
+                    department: '市场部',
+                    booker: '李四',
+                    date: today,
+                    startTime: '14:00',
+                    endTime: '15:00',
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    id: Date.now().toString() + '3',
+                    room: '大会议室',
+                    department: '产品部',
+                    booker: '王五',
+                    date: tomorrowStr,
+                    startTime: '09:00',
+                    endTime: '11:00',
+                    createdAt: new Date().toISOString()
+                }
+            ];
+            
+            bookings = sampleBookings;
+            saveBookings();
+        }
+    </script>
+</body>
+</html>
